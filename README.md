@@ -123,14 +123,6 @@ https://raw.githubusercontent.com/Franciskid/jellyfin-plugin-sharelinks/main/man
 Install **ShareLinks**, then restart Jellyfin. Hard-refresh the web client once for the menu entry
 to appear.
 
-To build from source you need Docker only, no local .NET:
-
-```sh
-./build.sh
-```
-
-Copy `dist/ShareLinks/` into `<jellyfin-config>/plugins/ShareLinks_<version>/` and restart.
-
 ## Configuration
 
 | Setting | Effect | Default |
