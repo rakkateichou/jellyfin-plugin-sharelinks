@@ -10,7 +10,7 @@ You pick an expiry and receive a URL. The person who opens it lands on that titl
 in, with a temporary account that Jellyfin restricts to the shared branch. When the link expires,
 the account and the temporary tag are removed.
 
-<img width="1505" height="820" alt="ShareLinks dashboard" src="https://github.com/user-attachments/assets/27296f27-9a37-4870-90aa-df8b6d9e9f43" />
+<img width="1505" height="820" alt="Create guest link dialog, opened from the item menu" src="https://github.com/user-attachments/assets/27296f27-9a37-4870-90aa-df8b6d9e9f43" />
 
 ---
 
