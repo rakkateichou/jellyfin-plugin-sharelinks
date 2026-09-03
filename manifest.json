@@ -4,10 +4,18 @@
         "name": "ShareLinks",
         "description": "Adds secure, expiring guest-share links for Jellyfin items using temporary hidden users, one-use token redemption, restrictive policies, and scheduled cleanup.",
         "overview": "Temporary guest links for Jellyfin movies and episodes.",
-        "owner": "Franciskid",
+        "owner": "Franciskid / rakkateichou",
         "category": "General",
         "imageUrl": "",
         "versions": [
+            {
+                "version": "1.0.6.0",
+                "changelog": "Adds compact 128-bit /j/<code> share URLs and stores JellyWatchParty room and current-media routing server-side. Watch-party guests now redeem directly into the active player without exposing room or media IDs in the URL. Existing long redemption links remain compatible.",
+                "targetAbi": "10.11.11.0",
+                "sourceUrl": "https://github.com/rakkateichou/jellyfin-plugin-sharelinks/releases/download/v1.0.6.0/sharelinks_1.0.6.0.zip",
+                "checksum": "2a96e6b1414f8e6437476de6653d7b79",
+                "timestamp": "2026-09-03T18:32:35Z"
+            },
             {
                 "version": "1.0.4.0",
                 "changelog": "Guests are now blocked from other plugins' API endpoints on the server, not just hidden from their UI in the browser. A share guest holds a real Jellyfin token, so anything that only hid a button left the endpoint answering it. Jellyfin's own API is untouched: the share tag already limits it to the shared title, and playback needs it. The config page lists your installed plugins with a checkbox each, so you can let one through when it genuinely needs to serve guests, such as an intro skipper. The guest hidden selectors setting is renamed to say what it is: cosmetic, it tidies the view and enforces nothing. Also fixes the dashboard devices page coming up empty after a share expired: deleting a guest left its device row behind, and a device whose user is missing makes Jellyfin fail the whole device listing rather than skip one row.",

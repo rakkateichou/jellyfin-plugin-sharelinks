@@ -1,5 +1,10 @@
 # ShareLinks for Jellyfin
 
+This fork adds compact `/j/<code>` invitations and server-side watch-party room/media routing for
+[rakkateichou/JellyWatchParty](https://github.com/rakkateichou/JellyWatchParty). It remains useful as
+a standalone secure sharing plugin. The original project is
+[Franciskid/jellyfin-plugin-sharelinks](https://github.com/Franciskid/jellyfin-plugin-sharelinks).
+
 Send someone one movie, episode, season or series through a link that expires. They need no
 account, and they see nothing else on your server.
 
@@ -118,7 +123,7 @@ button removes revoked, expired and failed records from the store.
 Add the repository in **Dashboard → Plugins → Manage repositories**:
 
 ```
-https://raw.githubusercontent.com/Franciskid/jellyfin-plugin-sharelinks/main/manifest.json
+https://raw.githubusercontent.com/rakkateichou/jellyfin-plugin-sharelinks/main/manifest.json
 ```
 
 Install **ShareLinks**, then restart Jellyfin. Hard-refresh the web client once for the menu entry
