@@ -322,7 +322,12 @@ public sealed class ShareLinkRedemptionService
         var partyValue = request.Query["party"].FirstOrDefault()?.Trim();
         if (Guid.TryParse(partyValue, out var partyId))
         {
-            redirectUrl += $"&jwpRoom={Uri.EscapeDataString(partyId.ToString("D"))}";
+            // Accountless party guests should never land on Jellyfin's episode
+            // details UI. JellyWatchParty treats this as a playback launch route,
+            // resolves the room's live media state, and docks chat once the real
+            // player exists. jwpMedia is only a bootstrap hint; room state remains
+            // authoritative if the host changed episodes after copying the link.
+            redirectUrl = $"{pathBase}/web/index.html#/video?jwpRoom={Uri.EscapeDataString(partyId.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
         }
 
         var accessTokenJson = JsonSerializer.Serialize(authResult.AccessToken);
@@ -355,7 +360,7 @@ public sealed class ShareLinkRedemptionService
   const accessToken = {{accessTokenJson}};
   const userId = {{userIdJson}};
 
-  document.getElementById("status").textContent = "Opening your title.";
+  document.getElementById("status").textContent = "Opening your watch party.";
 
   const info = await fetch({{infoUrlJson}}, {
     credentials: "same-origin",
