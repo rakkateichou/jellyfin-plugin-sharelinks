@@ -34,6 +34,12 @@ public sealed class ShareLinkCreateRequest
 
     /// <summary>Gets or sets whether the link may be redeemed once only.</summary>
     public bool? OneUse { get; set; }
+
+    /// <summary>Gets or sets an optional watch-party room id.</summary>
+    public string? PartyId { get; set; }
+
+    /// <summary>Gets or sets an optional watch-party media id.</summary>
+    public string? MediaId { get; set; }
 }
 
 /// <summary>Admin response for a created ShareLinks record.</summary>
@@ -54,6 +60,10 @@ public sealed class ShareLinkAdminRecordDto
     public string ItemId { get; set; } = string.Empty;
 
     public string ItemNameSnapshot { get; set; } = string.Empty;
+
+    public string? WatchPartyRoomId { get; set; }
+
+    public string? WatchPartyMediaId { get; set; }
 
     public string? LibraryId { get; set; }
 
@@ -230,11 +240,45 @@ public sealed class ShareLinksController : ControllerBase
             return BadRequest(new { error = "Only a movie, series, season or episode can be shared. Open the title's page and try again." });
         }
 
+        Guid? partyId = null;
+        Guid? mediaId = null;
+        if (!string.IsNullOrWhiteSpace(request.PartyId))
+        {
+            if (!Guid.TryParse(request.PartyId.Trim(), out var parsedPartyId))
+            {
+                return BadRequest(new { error = "Invalid watch-party room id." });
+            }
+
+            partyId = parsedPartyId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.MediaId))
+        {
+            if (!Guid.TryParse(request.MediaId.Trim(), out var parsedMediaId))
+            {
+                return BadRequest(new { error = "Invalid watch-party media id." });
+            }
+
+            mediaId = parsedMediaId;
+        }
+
+        if (partyId.HasValue != mediaId.HasValue)
+        {
+            return BadRequest(new { error = "A watch-party invite requires both partyId and mediaId." });
+        }
+
         try
         {
             var creatorUserId = GetCurrentUserId();
             var oneUse = request.OneUse ?? config.OneUseDefault;
-            var creation = await _creationService.CreateAsync(item, creatorUserId, expiryHours, oneUse, cancellationToken).ConfigureAwait(false);
+            var creation = await _creationService.CreateAsync(
+                item,
+                creatorUserId,
+                expiryHours,
+                oneUse,
+                partyId,
+                mediaId,
+                cancellationToken).ConfigureAwait(false);
             var shareUrl = BuildShareUrl(Request, creation.RawToken);
             creation.Record.ShareUrl = shareUrl;
             await _store.UpdateAsync(creation.Record, cancellationToken).ConfigureAwait(false);
@@ -384,6 +428,19 @@ public sealed class ShareLinksController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult> Redeem([FromQuery(Name = "t")] string? token, CancellationToken cancellationToken)
     {
+        return await RedeemTokenAsync(token, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Redeems a compact share link.</summary>
+    [HttpGet("~/j/{token}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> RedeemShort([FromRoute] string? token, CancellationToken cancellationToken)
+    {
+        return await RedeemTokenAsync(token, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ActionResult> RedeemTokenAsync(string? token, CancellationToken cancellationToken)
+    {
         SetNoStoreHeaders();
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -495,6 +552,8 @@ setTimeout(function () { window.location.replace({{redirectUrlJson}}); }, 4000);
             Id = record.Id,
             ItemId = record.ItemId,
             ItemNameSnapshot = record.ItemNameSnapshot,
+            WatchPartyRoomId = record.WatchPartyRoomId,
+            WatchPartyMediaId = record.WatchPartyMediaId,
             LibraryId = record.LibraryId,
             CreatedByUserId = record.CreatedByUserId,
             CreatedAtUtc = record.CreatedAtUtc,
@@ -559,6 +618,6 @@ setTimeout(function () { window.location.replace({{redirectUrlJson}}); }, 4000);
             ? $"{request.Scheme}://{request.Host}{request.PathBase}"
             : config.PublicBaseUrlOverride.TrimEnd('/');
 
-        return $"{baseUrl.TrimEnd('/')}/ShareLinks/Redeem?t={Uri.EscapeDataString(rawToken)}";
+        return $"{baseUrl.TrimEnd('/')}/j/{Uri.EscapeDataString(rawToken)}";
     }
 }

@@ -35,6 +35,8 @@ public sealed class ShareLinkCreationService
         Guid createdByUserId,
         int expiryHours,
         bool oneUse,
+        Guid? watchPartyRoomId,
+        Guid? watchPartyMediaId,
         CancellationToken cancellationToken)
     {
         if (item is null)
@@ -50,6 +52,8 @@ public sealed class ShareLinkCreationService
             TokenHash = token.TokenHash,
             ItemId = item.Id.ToString("D"),
             ItemNameSnapshot = item.Name ?? string.Empty,
+            WatchPartyRoomId = watchPartyRoomId?.ToString("D"),
+            WatchPartyMediaId = watchPartyMediaId?.ToString("D"),
             CreatedByUserId = createdByUserId == Guid.Empty ? null : createdByUserId,
             CreatedAtUtc = now,
             ExpiresAtUtc = now.AddHours(expiryHours),

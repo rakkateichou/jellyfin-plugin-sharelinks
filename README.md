@@ -46,10 +46,10 @@ sequenceDiagram
   participant J as Jellyfin core
   participant G as Guest browser
   A->>P: ShareLink on an item, pick expiry
-  P->>P: 256-bit token, store HMAC hash only
+  P->>P: 128-bit short code, store HMAC hash only
   P->>J: Tag the item and its children
   P-->>A: URL (returned once, copied to clipboard)
-  G->>P: GET /ShareLinks/Redeem?t=...
+  G->>P: GET /j/&lt;code&gt;
   P->>P: Hash the token, look the record up
   P->>J: Create guest user, policy = allow that tag
   P->>J: AuthenticateDirect, mint a session
@@ -73,6 +73,7 @@ sequenceDiagram
 | Decision | Reason |
 |---|---|
 | Only the token HMAC hash is stored | The raw token is returned once and never enters durable storage. Lookups hash the presented token and compare with `FixedTimeEquals`. |
+| Public links use `/j/<code>` | The 128-bit capability remains unguessable while keeping links short enough to share comfortably. Watch-party room and media routing are stored in the record instead of exposed as query parameters. |
 | The HMAC key is a per-server file, mode 0600 | A stolen `sharelinks.json` yields no usable token. The key is generated on first use. |
 | Tags propagate down, never up | A bug fixed in 1.0.3: a shared season tagged its parent series, and Jellyfin's tag inheritance then exposed every other season of that series. |
 | Guest accounts use a dedicated authentication provider | It refuses every interactive sign-in, so the login page cannot reach a guest account with any password. If the plugin is disabled, the provider id stops resolving and Jellyfin falls back to its own invalid provider, which also refuses. The design fails closed. |
@@ -152,13 +153,14 @@ access, not this.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /ShareLinks/Admin/Create` | Admin | Create a link. Returns the raw URL once |
+| `POST /ShareLinks/Admin/Create` | Admin | Create a link. Returns the short URL once; optional `partyId` and `mediaId` fields bind watch-party routing to its record |
 | `GET /ShareLinks/Admin/List` | Admin | All records with status and expiry |
 | `POST /ShareLinks/Admin/Revoke/{id}` | Admin | Revoke and tear down |
 | `POST /ShareLinks/Admin/Cleanup` | Admin | Remove revoked, expired and failed records |
 | `GET /ShareLinks/Admin/Plugins` | Admin | Installed plugins and their guest access state |
 | `GET /ShareLinks/GuestState` | Session | Whether the caller is a guest, and what to lock down |
-| `GET /ShareLinks/Redeem?t=...` | none | Redeem a token, return the bootstrap page |
+| `GET /j/{code}` | none | Redeem a short code and return the bootstrap page |
+| `GET /ShareLinks/Redeem?t=...` | none | Legacy redemption route kept for existing links |
 | `GET /ShareLinks/ClientScript` | none | The injected web-client script |
 
 Records live in `sharelinks/sharelinks.json` under Jellyfin's data folder. The HMAC key lives beside
@@ -170,9 +172,9 @@ it in `token-secret.key`.
   [jellyfin/jellyfin#14926](https://github.com/jellyfin/jellyfin/issues/14926): a tag-restricted user
   loses the Cast & Crew section, because the tag filter is applied to people as well as to media. A
   ShareLinks guest is tag-restricted, so it hits this.
-- **The token travels in the query string.** It appears in reverse-proxy access logs and in browser
-  history.
-- **Redemption is public and has no rate limit.** Tokens are 256-bit random, so guessing one is not
+- **The short code travels in the URL path.** It appears in reverse-proxy access logs and in browser
+  history, like any bearer-style share link.
+- **Redemption is public and has no rate limit.** Codes are 128-bit random, so guessing one is not
   realistic, but the endpoint answers anyone.
 - **Episodes added after a share** receive the tag on the next redemption, not the moment they are
   added. A one-use link that was already redeemed is a snapshot of the branch at that time.

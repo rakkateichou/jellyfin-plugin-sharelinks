@@ -20,6 +20,12 @@ public sealed class ShareLinkRecord
     /// <summary>Gets or sets the Jellyfin item name snapshot.</summary>
     public string ItemNameSnapshot { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the watch-party room carried by this invite, if any.</summary>
+    public string? WatchPartyRoomId { get; set; }
+
+    /// <summary>Gets or sets the initial watch-party media hint, if any.</summary>
+    public string? WatchPartyMediaId { get; set; }
+
     /// <summary>Gets or sets the library id snapshot.</summary>
     public string? LibraryId { get; set; }
 

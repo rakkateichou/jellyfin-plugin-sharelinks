@@ -27,11 +27,13 @@ public sealed class ShareTokenService
         _logger = logger;
     }
 
-    /// <summary>Creates a new 256-bit token and its HMAC hash.</summary>
+    /// <summary>Creates a new 128-bit token and its HMAC hash.</summary>
     public async Task<ShareTokenMaterial> GenerateAsync(CancellationToken cancellationToken = default)
     {
         var secret = await GetSecretAsync(cancellationToken).ConfigureAwait(false);
-        var tokenBytes = new byte[32];
+        // 128 bits keeps public invite codes compact while retaining far more
+        // entropy than a short-lived personal-server capability needs.
+        var tokenBytes = new byte[16];
         RandomNumberGenerator.Fill(tokenBytes);
 
         var token = Base64UrlEncode(tokenBytes);

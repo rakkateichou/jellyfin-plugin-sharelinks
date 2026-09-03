@@ -213,8 +213,12 @@ public sealed class ShareLinkRedemptionService
             return new ShareLinkRedemptionResult();
         }
 
-        var landingItemId = ResolveLandingItemId(request, item);
-        return new ShareLinkRedemptionResult { Html = BuildBootstrapHtml(request, authResult, landingItemId) };
+        var landingItemId = ResolveLandingItemId(request, item, record);
+        var watchPartyRoomId = ResolveWatchPartyRoomId(request, record);
+        return new ShareLinkRedemptionResult
+        {
+            Html = BuildBootstrapHtml(request, authResult, landingItemId, watchPartyRoomId)
+        };
     }
 
     /// <summary>
@@ -222,9 +226,11 @@ public sealed class ShareLinkRedemptionService
     /// ShareLinks permission scope. A series link may land on one of its episodes;
     /// arbitrary or out-of-series ids fall back to the shared item.
     /// </summary>
-    private Guid ResolveLandingItemId(HttpRequest request, BaseItem sharedItem)
+    private Guid ResolveLandingItemId(HttpRequest request, BaseItem sharedItem, ShareLinkRecord record)
     {
-        var mediaValue = request.Query["media"].FirstOrDefault()?.Trim();
+        var mediaValue = !string.IsNullOrWhiteSpace(record.WatchPartyMediaId)
+            ? record.WatchPartyMediaId
+            : request.Query["media"].FirstOrDefault()?.Trim();
         if (!Guid.TryParse(mediaValue, out var requestedId))
         {
             return sharedItem.Id;
@@ -252,6 +258,14 @@ public sealed class ShareLinkRedemptionService
         }
 
         return sharedItem.Id;
+    }
+
+    private static Guid? ResolveWatchPartyRoomId(HttpRequest request, ShareLinkRecord record)
+    {
+        var partyValue = !string.IsNullOrWhiteSpace(record.WatchPartyRoomId)
+            ? record.WatchPartyRoomId
+            : request.Query["party"].FirstOrDefault()?.Trim();
+        return Guid.TryParse(partyValue, out var partyId) ? partyId : null;
     }
 
     /// <summary>
@@ -308,7 +322,11 @@ public sealed class ShareLinkRedemptionService
         }
     }
 
-    private static string BuildBootstrapHtml(HttpRequest request, AuthenticationResult authResult, Guid itemId)
+    private static string BuildBootstrapHtml(
+        HttpRequest request,
+        AuthenticationResult authResult,
+        Guid itemId,
+        Guid? watchPartyRoomId)
     {
         var pathBase = request.PathBase.Value ?? string.Empty;
         var redirectUrl = $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.ToString("D"))}";
@@ -319,15 +337,14 @@ public sealed class ShareLinkRedemptionService
         // join after that account has been bootstrapped. Only accept the UUID
         // format produced by the session server so arbitrary query content can
         // never be reflected into the destination URL.
-        var partyValue = request.Query["party"].FirstOrDefault()?.Trim();
-        if (Guid.TryParse(partyValue, out var partyId))
+        if (watchPartyRoomId.HasValue)
         {
             // Accountless party guests should never land on Jellyfin's episode
             // details UI. JellyWatchParty treats this as a playback launch route,
             // resolves the room's live media state, and docks chat once the real
             // player exists. jwpMedia is only a bootstrap hint; room state remains
             // authoritative if the host changed episodes after copying the link.
-            redirectUrl = $"{pathBase}/web/index.html#/video?jwpRoom={Uri.EscapeDataString(partyId.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
+            redirectUrl = $"{pathBase}/web/index.html#/video?jwpRoom={Uri.EscapeDataString(watchPartyRoomId.Value.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
         }
 
         var accessTokenJson = JsonSerializer.Serialize(authResult.AccessToken);
