@@ -65,7 +65,12 @@ public sealed class WebInjectionHostedService : IHostedService
         }
 
         var html = File.ReadAllText(path);
-        if (html.Contains(Begin, StringComparison.Ordinal))
+        // A container deployment may provide a read-only, pre-customised
+        // index.html with the endpoint already included. Treat that exactly
+        // like our own marker so startup remains quiet and idempotent instead
+        // of attempting to create a backup beside a read-only bind mount.
+        if (html.Contains(Begin, StringComparison.Ordinal)
+            || html.Contains("/ShareLinks/ClientScript", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

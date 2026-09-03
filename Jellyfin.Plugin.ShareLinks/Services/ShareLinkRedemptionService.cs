@@ -7,6 +7,7 @@ using Jellyfin.Plugin.ShareLinks.Models;
 using Jellyfin.Plugin.ShareLinks.Storage;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using Microsoft.AspNetCore.Http;
@@ -212,7 +213,45 @@ public sealed class ShareLinkRedemptionService
             return new ShareLinkRedemptionResult();
         }
 
-        return new ShareLinkRedemptionResult { Html = BuildBootstrapHtml(request, authResult, itemId) };
+        var landingItemId = ResolveLandingItemId(request, item);
+        return new ShareLinkRedemptionResult { Html = BuildBootstrapHtml(request, authResult, landingItemId) };
+    }
+
+    /// <summary>
+    /// Chooses the page a watch-party guest initially sees without widening the
+    /// ShareLinks permission scope. A series link may land on one of its episodes;
+    /// arbitrary or out-of-series ids fall back to the shared item.
+    /// </summary>
+    private Guid ResolveLandingItemId(HttpRequest request, BaseItem sharedItem)
+    {
+        var mediaValue = request.Query["media"].FirstOrDefault()?.Trim();
+        if (!Guid.TryParse(mediaValue, out var requestedId))
+        {
+            return sharedItem.Id;
+        }
+
+        if (requestedId == sharedItem.Id)
+        {
+            return requestedId;
+        }
+
+        var requestedItem = _libraryManager.GetItemById(requestedId);
+        if (requestedItem is not Episode episode)
+        {
+            return sharedItem.Id;
+        }
+
+        if (sharedItem is Series && episode.SeriesId == sharedItem.Id)
+        {
+            return requestedId;
+        }
+
+        if (sharedItem is Season && episode.SeasonId == sharedItem.Id)
+        {
+            return requestedId;
+        }
+
+        return sharedItem.Id;
     }
 
     /// <summary>
@@ -273,6 +312,18 @@ public sealed class ShareLinkRedemptionService
     {
         var pathBase = request.PathBase.Value ?? string.Empty;
         var redirectUrl = $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.ToString("D"))}";
+
+        // A watch-party invitation is still a normal ShareLinks redemption: the
+        // opaque share token creates the restricted temporary Jellyfin account,
+        // while this optional room id merely tells JellyWatchParty which room to
+        // join after that account has been bootstrapped. Only accept the UUID
+        // format produced by the session server so arbitrary query content can
+        // never be reflected into the destination URL.
+        var partyValue = request.Query["party"].FirstOrDefault()?.Trim();
+        if (Guid.TryParse(partyValue, out var partyId))
+        {
+            redirectUrl += $"&jwpRoom={Uri.EscapeDataString(partyId.ToString("D"))}";
+        }
 
         var accessTokenJson = JsonSerializer.Serialize(authResult.AccessToken);
         var userIdJson = JsonSerializer.Serialize(authResult.User.Id.ToString("N"));
