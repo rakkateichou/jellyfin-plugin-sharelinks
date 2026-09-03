@@ -339,12 +339,15 @@ public sealed class ShareLinkRedemptionService
         // never be reflected into the destination URL.
         if (watchPartyRoomId.HasValue)
         {
-            // Accountless party guests should never land on Jellyfin's episode
-            // details UI. JellyWatchParty treats this as a playback launch route,
-            // resolves the room's live media state, and docks chat once the real
-            // player exists. jwpMedia is only a bootstrap hint; room state remains
-            // authoritative if the host changed episodes after copying the link.
-            redirectUrl = $"{pathBase}/web/index.html#/video?jwpRoom={Uri.EscapeDataString(watchPartyRoomId.Value.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
+            // Jellyfin rejects a bare #/video route when no native playback
+            // session exists yet and may fall back to the shared series page.
+            // Start on the exact episode instead; JellyWatchParty covers this
+            // bridge with its launch screen and presses Jellyfin's native Play
+            // action as soon as the client loads. The guest therefore sees the
+            // player, while Jellyfin gets the valid item context it needs to
+            // create that player. jwpMedia is only a bootstrap hint; live room
+            // state remains authoritative if the host has changed episodes.
+            redirectUrl = $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.ToString("D"))}&jwpRoom={Uri.EscapeDataString(watchPartyRoomId.Value.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
         }
 
         var accessTokenJson = JsonSerializer.Serialize(authResult.AccessToken);
