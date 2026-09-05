@@ -208,6 +208,17 @@ targets the shipped client, in English and in French.
 
 <img width="566" height="313" alt="Generated link" src="https://github.com/user-attachments/assets/d9e581eb-d654-4c73-8730-0b2b19fbbe25" />
 
+## Waiting-room invitations
+
+JellyWatchParty can create an invitation before choosing a title by sending `partyId`
+with no `itemId` or `mediaId` to `ShareLinks/Admin/Create`. The temporary guest has an
+unused permission tag until a title is selected. Subsequent multi-use creation requests
+from the same creator for that room reuse its URL and guest account, update the allowed
+movie or series, and publish `WatchPartyMediaId` through `GuestState` once access is ready.
+JellyWatchParty uses that state to move waiting guests into playback automatically.
+
+Run the waiting-room regression tests with `dotnet test ShareLinks.Tests/ShareLinks.Tests.csproj`.
+
 ## License
 
 Developed by [Franciskid](https://github.com/Franciskid). Licensed under the [GPL-3.0](LICENSE),

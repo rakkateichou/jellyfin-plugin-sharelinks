@@ -39,7 +39,6 @@ public sealed class ShareLinkRedemptionService
     private readonly ShareLinkCleanupService _cleanupService;
     private readonly ISessionManager _sessionManager;
     private readonly ILogger<ShareLinkRedemptionService> _logger;
-    private readonly SemaphoreSlim _redeemGate = new(1, 1);
 
     /// <summary>Initializes a new instance of the <see cref="ShareLinkRedemptionService"/> class.</summary>
     public ShareLinkRedemptionService(
@@ -68,14 +67,14 @@ public sealed class ShareLinkRedemptionService
         // One redemption at a time: the status checks below and the status write
         // that follows them are not atomic, so two requests arriving together with
         // the same one-use token would otherwise both mint a guest session.
-        await _redeemGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             return await RedeemInternalAsync(rawToken, request, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _redeemGate.Release();
+            _store.InviteGate.Release();
         }
     }
 
@@ -126,20 +125,23 @@ public sealed class ShareLinkRedemptionService
             return new ShareLinkRedemptionResult { AtCapacity = true };
         }
 
-        if (!Guid.TryParse(record.ItemId, out var itemId))
+        var waitingForTitle = string.IsNullOrEmpty(record.ItemId)
+            && Guid.TryParse(record.WatchPartyRoomId, out _)
+            && !string.IsNullOrWhiteSpace(record.AllowedTag);
+        if (!Guid.TryParse(record.ItemId, out var itemId) && !waitingForTitle)
         {
             await HandleFailureAsync(record, "Shared item snapshot is invalid.", cancellationToken).ConfigureAwait(false);
             return new ShareLinkRedemptionResult();
         }
 
-        var item = _libraryManager.GetItemById(itemId);
-        if (item is null)
+        var item = waitingForTitle ? null : _libraryManager.GetItemById(itemId);
+        if (item is null && !waitingForTitle)
         {
             await HandleFailureAsync(record, "Shared item no longer exists.", cancellationToken).ConfigureAwait(false);
             return new ShareLinkRedemptionResult();
         }
 
-        if (!string.IsNullOrWhiteSpace(record.AllowedTag))
+        if (item is not null && !string.IsNullOrWhiteSpace(record.AllowedTag))
         {
             await _itemTagService.EnsureTagTreeAsync(item, record.AllowedTag!, cancellationToken).ConfigureAwait(false);
             record.MetadataTouched = true;
@@ -213,7 +215,7 @@ public sealed class ShareLinkRedemptionService
             return new ShareLinkRedemptionResult();
         }
 
-        var landingItemId = ResolveLandingItemId(request, item, record);
+        var landingItemId = item is null ? (Guid?)null : ResolveLandingItemId(request, item, record);
         var watchPartyRoomId = ResolveWatchPartyRoomId(request, record);
         return new ShareLinkRedemptionResult
         {
@@ -314,7 +316,7 @@ public sealed class ShareLinkRedemptionService
     {
         try
         {
-            await _cleanupService.CleanupRecordAsync(record.Id, true, cancellationToken).ConfigureAwait(false);
+            await _cleanupService.CleanupRecordAsync(record.Id, true, cancellationToken, inviteGateHeld: true).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -325,11 +327,13 @@ public sealed class ShareLinkRedemptionService
     private static string BuildBootstrapHtml(
         HttpRequest request,
         AuthenticationResult authResult,
-        Guid itemId,
+        Guid? itemId,
         Guid? watchPartyRoomId)
     {
         var pathBase = request.PathBase.Value ?? string.Empty;
-        var redirectUrl = $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.ToString("D"))}";
+        var redirectUrl = itemId.HasValue
+            ? $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.Value.ToString("D"))}"
+            : $"{pathBase}/web/index.html#/home?jwpWaiting=1";
 
         // A watch-party invitation is still a normal ShareLinks redemption: the
         // opaque share token creates the restricted temporary Jellyfin account,
@@ -347,7 +351,9 @@ public sealed class ShareLinkRedemptionService
             // player, while Jellyfin gets the valid item context it needs to
             // create that player. jwpMedia is only a bootstrap hint; live room
             // state remains authoritative if the host has changed episodes.
-            redirectUrl = $"{pathBase}/web/index.html#/details?id={Uri.EscapeDataString(itemId.ToString("D"))}&jwpRoom={Uri.EscapeDataString(watchPartyRoomId.Value.ToString("D"))}&jwpMedia={Uri.EscapeDataString(itemId.ToString("D"))}";
+            redirectUrl += $"&jwpRoom={Uri.EscapeDataString(watchPartyRoomId.Value.ToString("D"))}";
+            if (itemId.HasValue)
+                redirectUrl += $"&jwpMedia={Uri.EscapeDataString(itemId.Value.ToString("D"))}";
         }
 
         var accessTokenJson = JsonSerializer.Serialize(authResult.AccessToken);
@@ -379,6 +385,7 @@ public sealed class ShareLinkRedemptionService
   const redirectUrl = {{redirectUrlJson}};
   const accessToken = {{accessTokenJson}};
   const userId = {{userIdJson}};
+  const watchPartyRoomId = {{JsonSerializer.Serialize(watchPartyRoomId?.ToString("D"))}};
 
   document.getElementById("status").textContent = "Opening your watch party.";
 
@@ -398,6 +405,7 @@ public sealed class ShareLinkRedemptionService
         LastConnectionMode: 1,
         AccessToken: accessToken,
         UserId: userId,
+        JwpRoomId: watchPartyRoomId,
         DateLastAccessed: Date.now()
       }
     ]
@@ -405,6 +413,7 @@ public sealed class ShareLinkRedemptionService
 
   try {
     localStorage.setItem("jellyfin_credentials", JSON.stringify(credentials));
+    if (watchPartyRoomId) sessionStorage.removeItem('jwp_guest_closed');
   } catch (_) {
     // If storage is blocked the redirect lands on the login screen.
   }

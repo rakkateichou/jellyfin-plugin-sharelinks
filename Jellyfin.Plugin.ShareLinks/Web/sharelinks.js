@@ -312,6 +312,12 @@
         hideGuestControls();
         hideBlockedGuestMenuItems();
 
+        // JellyWatchParty owns waiting-room and live-title routing. Its media
+        // access check uses fresh server state; this script's cached item scope
+        // would otherwise send guests back to the previous series.
+        if (window.JellyWatchParty?.guestLockdown?.isRestricted?.()) return;
+        if (/[?&]jwpRoom=[0-9a-f-]{36}(?:&|$)/i.test(location.hash || '')) return;
+
         // UX-only lockdown: the guest user's real access boundary is still the
         // server-side policy and item tags. This just keeps the web client out
         // of the user's way, while still letting the guest browse into the

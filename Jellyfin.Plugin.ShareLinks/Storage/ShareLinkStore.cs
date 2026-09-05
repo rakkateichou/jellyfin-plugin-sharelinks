@@ -16,6 +16,9 @@ namespace Jellyfin.Plugin.ShareLinks.Storage;
 /// </summary>
 public sealed class ShareLinkStore
 {
+    /// <summary>Serializes invite creation, media changes and redemption.</summary>
+    public SemaphoreSlim InviteGate { get; } = new(1, 1);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,

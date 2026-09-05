@@ -38,6 +38,13 @@ public sealed class ShareLinkCleanupService : IShareLinkCleanupService
     /// <inheritdoc />
     public async Task CleanupAsync(CancellationToken cancellationToken)
     {
+        await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { await CleanupCoreAsync(cancellationToken).ConfigureAwait(false); }
+        finally { _store.InviteGate.Release(); }
+    }
+
+    private async Task CleanupCoreAsync(CancellationToken cancellationToken)
+    {
         var records = await _store.ListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var record in records)
         {
@@ -47,6 +54,13 @@ public sealed class ShareLinkCleanupService : IShareLinkCleanupService
 
     /// <summary>Revokes a specific share link and immediately runs teardown.</summary>
     public async Task<ShareLinkRecord?> RevokeAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await RevokeCoreAsync(id, cancellationToken).ConfigureAwait(false); }
+        finally { _store.InviteGate.Release(); }
+    }
+
+    private async Task<ShareLinkRecord?> RevokeCoreAsync(Guid id, CancellationToken cancellationToken)
     {
         var record = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
         if (record is null)
@@ -63,7 +77,14 @@ public sealed class ShareLinkCleanupService : IShareLinkCleanupService
     }
 
     /// <summary>Runs cleanup for one record by id.</summary>
-    public async Task CleanupRecordAsync(Guid id, bool force, CancellationToken cancellationToken)
+    public async Task CleanupRecordAsync(Guid id, bool force, CancellationToken cancellationToken, bool inviteGateHeld = false)
+    {
+        if (!inviteGateHeld) await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { await CleanupRecordCoreAsync(id, force, cancellationToken).ConfigureAwait(false); }
+        finally { if (!inviteGateHeld) _store.InviteGate.Release(); }
+    }
+
+    private async Task CleanupRecordCoreAsync(Guid id, bool force, CancellationToken cancellationToken)
     {
         var record = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
         if (record is null)

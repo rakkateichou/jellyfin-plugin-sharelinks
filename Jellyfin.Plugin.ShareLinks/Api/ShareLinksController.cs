@@ -101,6 +101,10 @@ public sealed class ShareLinkGuestStateDto
 
     public string? AllowedItemId { get; set; }
 
+    public string? WatchPartyRoomId { get; set; }
+
+    public string? WatchPartyMediaId { get; set; }
+
     public Guid? ShareId { get; set; }
 
     public DateTimeOffset? ExpiresAtUtc { get; set; }
@@ -199,13 +203,14 @@ public sealed class ShareLinksController : ControllerBase
             return StatusCode(503, new { error = "ShareLinks is disabled." });
         }
 
-        if (request is null || string.IsNullOrWhiteSpace(request.ItemId))
+        if (request is null || (string.IsNullOrWhiteSpace(request.ItemId) && string.IsNullOrWhiteSpace(request.PartyId)))
         {
             _logger.LogWarning("ShareLinks: create rejected, missing itemId.");
             return BadRequest(new { error = "Missing itemId." });
         }
 
-        if (!Guid.TryParse(request.ItemId!.Trim(), out var itemId))
+        var itemId = Guid.Empty;
+        if (!string.IsNullOrWhiteSpace(request.ItemId) && !Guid.TryParse(request.ItemId.Trim(), out itemId))
         {
             _logger.LogWarning("ShareLinks: create rejected, itemId {ItemId} is not a GUID.", request.ItemId);
             return BadRequest(new { error = "Invalid itemId." });
@@ -223,14 +228,14 @@ public sealed class ShareLinksController : ControllerBase
             return BadRequest(new { error = $"Expiry exceeds the configured maximum of {maxExpiryHours} hours." });
         }
 
-        var item = _libraryManager.GetItemById(itemId);
-        if (item is null)
+        var item = itemId == Guid.Empty ? null : _libraryManager.GetItemById(itemId);
+        if (item is null && !string.IsNullOrWhiteSpace(request.ItemId))
         {
             _logger.LogWarning("ShareLinks: create rejected, item {ItemId} not found.", itemId);
             return NotFound(new { error = "Item not found." });
         }
 
-        if (!IsShareableItem(item))
+        if (item is not null && !IsShareableItem(item))
         {
             _logger.LogWarning(
                 "ShareLinks: create rejected, item {ItemId} \"{ItemName}\" is a {ItemType}, which is not shareable media.",
@@ -244,7 +249,7 @@ public sealed class ShareLinksController : ControllerBase
         Guid? mediaId = null;
         if (!string.IsNullOrWhiteSpace(request.PartyId))
         {
-            if (!Guid.TryParse(request.PartyId.Trim(), out var parsedPartyId))
+            if (!Guid.TryParse(request.PartyId.Trim(), out var parsedPartyId) || parsedPartyId == Guid.Empty)
             {
                 return BadRequest(new { error = "Invalid watch-party room id." });
             }
@@ -262,15 +267,34 @@ public sealed class ShareLinksController : ControllerBase
             mediaId = parsedMediaId;
         }
 
-        if (partyId.HasValue != mediaId.HasValue)
+        if ((mediaId.HasValue && (!partyId.HasValue || item is null))
+            || (partyId.HasValue && item is not null && !mediaId.HasValue))
         {
-            return BadRequest(new { error = "A watch-party invite requires both partyId and mediaId." });
+            return BadRequest(new { error = "Select both an item and media for a watch-party title, or neither for a waiting room." });
         }
 
+        if (mediaId.HasValue && mediaId.Value != item!.Id)
+        {
+            var media = _libraryManager.GetItemById(mediaId.Value);
+            if (media is not Episode episode
+                || !((item is Series && episode.SeriesId == item.Id)
+                    || (item is Season && episode.SeasonId == item.Id)))
+                return BadRequest(new { error = "Watch-party media must belong to the shared title." });
+        }
+
+        await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var creatorUserId = GetCurrentUserId();
+            if (creatorUserId == Guid.Empty) return Forbid();
             var oneUse = request.OneUse ?? config.OneUseDefault;
+            if (partyId.HasValue && !oneUse)
+            {
+                var existing = await _creationService.UpdatePartyAsync(
+                    partyId.Value, creatorUserId, item, mediaId, cancellationToken).ConfigureAwait(false);
+                if (existing is not null)
+                    return Ok(new ShareLinkCreateResponse { ShareUrl = existing.ShareUrl!, Record = ToDto(existing) });
+            }
             var creation = await _creationService.CreateAsync(
                 item,
                 creatorUserId,
@@ -292,6 +316,10 @@ public sealed class ShareLinksController : ControllerBase
         {
             _logger.LogWarning(ex, "ShareLinks: create failed for item {ItemId}.", itemId);
             return StatusCode(500, new { error = "Failed to create share link." });
+        }
+        finally
+        {
+            _store.InviteGate.Release();
         }
     }
 
@@ -407,6 +435,8 @@ public sealed class ShareLinksController : ControllerBase
                 {
                     IsGuest = true,
                     AllowedItemId = match.ItemId,
+                    WatchPartyRoomId = match.WatchPartyRoomId,
+                    WatchPartyMediaId = match.WatchPartyMediaId,
                     ShareId = match.Id,
                     ExpiresAtUtc = match.ExpiresAtUtc,
                     LockdownEnabled = config.GuestModeLockdownEnabled,
@@ -463,19 +493,12 @@ public sealed class ShareLinksController : ControllerBase
 
     private static ContentResult LinkUnavailablePage(HttpRequest request)
     {
-        var pathBase = request.PathBase.Value ?? string.Empty;
-        var redirectUrl = $"{pathBase}/web/";
-
-        var redirectUrlJson = JsonSerializer.Serialize(redirectUrl);
-        var redirectUrlHtml = System.Net.WebUtility.HtmlEncode(redirectUrl);
-
         var html = $$"""
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="6;url={{redirectUrlHtml}}">
   <title>Link unavailable</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111827; color: #e5e7eb; }
@@ -487,13 +510,8 @@ public sealed class ShareLinksController : ControllerBase
 <body>
 <main>
   <div>This share link is no longer valid.</div>
-  <div class="muted">Ce lien de partage n'est plus valide.</div>
-  <div class="muted">Taking you to the home page...</div>
-  <p><a href="{{redirectUrlHtml}}">Open Jellyfin</a></p>
+  <div class="muted">Ask the room owner for a new invitation.</div>
 </main>
-<script>
-setTimeout(function () { window.location.replace({{redirectUrlJson}}); }, 4000);
-</script>
 </body>
 </html>
 """;
