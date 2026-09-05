@@ -13,7 +13,7 @@
                 "changelog": "Invitations can be copied before the owner selects a title. Guests join an empty player with chat and receive access to the selected movie or series through the same invitation URL and guest account. Room-scoped guest metadata survives reloads, and unavailable links stay on an invitation error screen.",
                 "targetAbi": "10.11.11.0",
                 "sourceUrl": "https://github.com/rakkateichou/jellyfin-plugin-sharelinks/releases/download/v1.0.8.0/sharelinks_1.0.8.0.zip",
-                "checksum": "d4473348d93af92d7505f4144bb2ad7f",
+                "checksum": "5816586abe7b8c4a9e829f78b4853781",
                 "timestamp": "2026-09-05T12:38:10Z"
             },
             {
