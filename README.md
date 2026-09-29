@@ -1,3 +1,7 @@
+## Jellyfin 12.1 fork release
+
+Version 1.1.0.0 targets Jellyfin 12.1 / .NET 10. Use JellyWatchParty 1.13.0.0 for the fork's compact invitations and waiting rooms. Keep version 1.0.8.0 on Jellyfin 10.11. Back up the server configuration, databases and metadata before the Jellyfin major upgrade. Existing share records and guest policies are preserved.
+
 # ShareLinks for Jellyfin
 
 This fork adds compact `/j/<code>` invitations and server-side watch-party room/media routing for
