@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Jellyfin.Plugin.ShareLinks</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.ShareLinks</AssemblyName>
-    <Version>1.0.8.0</Version>
-    <AssemblyVersion>1.0.8.0</AssemblyVersion>
-    <FileVersion>1.0.8.0</FileVersion>
+    <Version>1.1.0.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <Authors>Franciskid; Ruslan Veselov</Authors>
     <RepositoryUrl>https://github.com/rakkateichou/jellyfin-plugin-sharelinks</RepositoryUrl>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.11" />
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
