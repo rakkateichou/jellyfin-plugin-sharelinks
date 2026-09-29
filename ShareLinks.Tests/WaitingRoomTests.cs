@@ -150,6 +150,9 @@ public sealed class WaitingRoomTests : IDisposable
         var redirect = JsonSerializer.Deserialize<string>(Regex.Match(html, @"const redirectUrl = (.+);").Groups[1].Value)!;
         Assert.Contains("jwpRoom=" + _roomId.ToString("D"), redirect);
         Assert.Contains("JwpRoomId: watchPartyRoomId", html);
+        Assert.Contains("ManualAddress: serverAddress", html);
+        Assert.Contains("LastConnectionMode: 2", html);
+        Assert.DoesNotContain("LastConnectionMode: 1", html);
         Assert.Contains("sessionStorage.removeItem('jwp_guest_closed')", html);
         if (hasTitle)
         {

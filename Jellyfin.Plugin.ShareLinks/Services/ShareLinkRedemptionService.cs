@@ -402,7 +402,9 @@ public sealed class ShareLinkRedemptionService
         manualAddressOnly: true,
         Name: info.ServerName || "Jellyfin",
         Id: info.Id,
-        LastConnectionMode: 1,
+        // Jellyfin 12 resolves the address strictly from ConnectionMode.
+        // Manual = 2; Remote = 1 requires a RemoteAddress that guests do not have.
+        LastConnectionMode: 2,
         AccessToken: accessToken,
         UserId: userId,
         JwpRoomId: watchPartyRoomId,
