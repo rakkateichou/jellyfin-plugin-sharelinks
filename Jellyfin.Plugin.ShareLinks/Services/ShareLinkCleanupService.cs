@@ -38,17 +38,13 @@ public sealed class ShareLinkCleanupService : IShareLinkCleanupService
     /// <inheritdoc />
     public async Task CleanupAsync(CancellationToken cancellationToken)
     {
-        await _store.InviteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { await CleanupCoreAsync(cancellationToken).ConfigureAwait(false); }
-        finally { _store.InviteGate.Release(); }
-    }
-
-    private async Task CleanupCoreAsync(CancellationToken cancellationToken)
-    {
+        // A migrated server may have many finished records. Keep each teardown
+        // atomic, but let invitation requests run between records instead of
+        // holding the global gate throughout a potentially long startup pass.
         var records = await _store.ListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var record in records)
         {
-            await CleanupRecordInternalAsync(record, records, false, cancellationToken).ConfigureAwait(false);
+            await CleanupRecordAsync(record.Id, false, cancellationToken).ConfigureAwait(false);
         }
     }
 

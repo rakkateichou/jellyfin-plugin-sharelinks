@@ -164,6 +164,45 @@ public sealed class WaitingRoomTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task CleanupAllowsInviteRequestsBetweenRecords()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updates = 0;
+        for (var i = 0; i < 2; i++)
+        {
+            var item = new Movie { Id = Guid.NewGuid(), Tags = new[] { "sharelinks-test" } };
+            _library.Setup(x => x.GetItemById(item.Id)).Returns(item);
+            await _store.UpsertAsync(new ShareLinkRecord {
+                ItemId = item.Id.ToString(), AllowedTag = "sharelinks-test",
+                Status = ShareLinkStatus.Expired, ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(-1)
+            });
+        }
+        _library.Setup(x => x.UpdateItemAsync(It.IsAny<BaseItem>(), It.IsAny<BaseItem>(),
+            It.IsAny<MediaBrowser.Model.Entities.ItemUpdateType>(), It.IsAny<CancellationToken>()))
+            .Returns(async () => {
+                if (Interlocked.Increment(ref updates) == 1) {
+                    entered.SetResult();
+                    await release.Task;
+                }
+            });
+        var guests = new JellyfinGuestUserService(Mock.Of<IUserManager>(),
+            Mock.Of<MediaBrowser.Controller.Devices.IDeviceManager>(), NullLogger<JellyfinGuestUserService>.Instance);
+        var cleanup = new ShareLinkCleanupService(_store, _library.Object,
+            new ItemTagService(_library.Object, NullLogger<ItemTagService>.Instance), guests,
+            NullLogger<ShareLinkCleanupService>.Instance);
+        var running = cleanup.CleanupAsync(default);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var invitation = _store.InviteGate.WaitAsync();
+        release.SetResult();
+        await invitation.WaitAsync(TimeSpan.FromSeconds(5));
+        try { Assert.Equal(1, updates); }
+        finally { _store.InviteGate.Release(); }
+        await running;
+        Assert.Equal(2, updates);
+    }
+
     public void Dispose()
     {
         // Each fixture owns only this generated directory under the test root.
