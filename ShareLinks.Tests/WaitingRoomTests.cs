@@ -180,7 +180,7 @@ public sealed class WaitingRoomTests : IDisposable
             });
         }
         _library.Setup(x => x.UpdateItemAsync(It.IsAny<BaseItem>(), It.IsAny<BaseItem>(),
-            It.IsAny<MediaBrowser.Model.Entities.ItemUpdateType>(), It.IsAny<CancellationToken>()))
+            It.IsAny<ItemUpdateType>(), It.IsAny<CancellationToken>()))
             .Returns(async () => {
                 if (Interlocked.Increment(ref updates) == 1) {
                     entered.SetResult();
