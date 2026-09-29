@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "1.1.0.1",
+        "changelog": "Jellyfin 12.1 / .NET 10 support, guest browser sign-in and responsive cleanup from 1.1.0.0, plus closing active guest sessions before user deletion so expired or revoked shares do not leave stale library-notification sessions.",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/rakkateichou/jellyfin-plugin-sharelinks/releases/download/v1.1.0.1/ShareLinks-1.1.0.1.zip",
+        "checksum": "04f733560bf9ffcf4c640ac1aa2e8975",
+        "timestamp": "2026-09-29T09:25:00Z"
+      },
+      {
         "version": "1.1.0.0",
         "changelog": "Jellyfin 12.1 / .NET 10 support, correct Manual connection mode for guest browser sign-in, and per-record cleanup locking so startup cleanup does not block invitations. Preserves compact links, waiting rooms, one-use redemption and guest access restrictions.",
         "targetAbi": "12.1.0.0",
