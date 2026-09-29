@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.ShareLinks.Models;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging;
 
@@ -24,16 +26,19 @@ public sealed class JellyfinGuestUserService
 
     private readonly IUserManager _userManager;
     private readonly IDeviceManager _deviceManager;
+    private readonly ISessionManager _sessionManager;
     private readonly ILogger<JellyfinGuestUserService> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="JellyfinGuestUserService"/> class.</summary>
     public JellyfinGuestUserService(
         IUserManager userManager,
         IDeviceManager deviceManager,
+        ISessionManager sessionManager,
         ILogger<JellyfinGuestUserService> logger)
     {
         _userManager = userManager;
         _deviceManager = deviceManager;
+        _sessionManager = sessionManager;
         _logger = logger;
     }
 
@@ -135,6 +140,18 @@ public sealed class JellyfinGuestUserService
             // DeviceManager.ToDeviceInfo throw for the WHOLE listing, so one leftover
             // guest 404s the admin dashboard's devices page entirely.
             await DeleteDevicesForUserAsync(user.Id).ConfigureAwait(false);
+            // Device deletion revokes credentials but leaves active sessions in memory.
+            // End them while the user still exists so Jellyfin's library notifications
+            // and playback cleanup never try to resolve a deleted guest.
+            var sessionIds = _sessionManager.Sessions
+                .Where(session => session.UserId == user.Id)
+                .Select(session => session.Id)
+                .ToArray();
+            foreach (var sessionId in sessionIds)
+            {
+                await _sessionManager.ReportSessionEnded(sessionId).ConfigureAwait(false);
+            }
+
             await _userManager.DeleteUserAsync(user.Id).ConfigureAwait(false);
             _logger.LogInformation("ShareLinks: deleted guest user {UserName} for record {RecordId}.", user.Username, record.Id);
         }

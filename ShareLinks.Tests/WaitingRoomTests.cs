@@ -191,7 +191,8 @@ public sealed class WaitingRoomTests : IDisposable
                 }
             });
         var guests = new JellyfinGuestUserService(Mock.Of<IUserManager>(),
-            Mock.Of<MediaBrowser.Controller.Devices.IDeviceManager>(), NullLogger<JellyfinGuestUserService>.Instance);
+            Mock.Of<MediaBrowser.Controller.Devices.IDeviceManager>(),
+            Mock.Of<MediaBrowser.Controller.Session.ISessionManager>(), NullLogger<JellyfinGuestUserService>.Instance);
         var cleanup = new ShareLinkCleanupService(_store, _library.Object,
             new ItemTagService(_library.Object, NullLogger<ItemTagService>.Instance), guests,
             NullLogger<ShareLinkCleanupService>.Instance);
